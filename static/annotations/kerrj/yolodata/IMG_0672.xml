@@ -1,0 +1,1 @@
+<annotation><filename>IMG_0672.jpg</filename><size><width>605</width><height>605</height><depth>3</depth></size><object><name>robot</name><bndbox><xmin>49</xmin><ymin>315</ymin><xmax>238</xmax><ymax>460</ymax></bndbox></object><object><name>yogaball</name><bndbox><xmin>228</xmin><ymin>194</ymin><xmax>252</xmax><ymax>219</ymax></bndbox></object></annotation>

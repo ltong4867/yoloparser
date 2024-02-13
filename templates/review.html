@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<body>
+<title>Image Annotation Reviewer</title>
+<p>First indicate where your training images are, and what objects you want to parse these images for</p>
+<input type="text" id="owner" placeholder="GitHub Username"></input>
+<input type="text" id="name" placeholder="Repository Name"></input>
+<input size="50" type="text" id="objects" placeholder="Comma-Separated List of Objects"></input>
+<button id="register">Submit</button>
+<p>You can click inside boxes to select them and change them, and draw new boxes as normal</p>
+<p>
+<button id="previousButton">Previous</button>
+<button id="nextButton">Next</button>
+</p>
+<p id="buttonparagraph" style="margin-top:.1em;margin-bottom:.1em;"></p>
+
+<canvas id="myCanvas" width="100" height="100">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script>
+  document.getElementById('register').onclick=function(){
+    o=document.getElementById('owner').value.toLowerCase()
+    n=document.getElementById('name').value.toLowerCase()
+    labels=document.getElementById('objects').value.toLowerCase().split(',')
+    registerRepo(o,n)
+    generateButtons(labels)
+  }
+  function generateButtons(labels){
+    var p=document.getElementById('buttonparagraph')
+    for(l=0;l<labels.length;l++){
+      var button=document.createElement('button')
+      button.textContent=labels[l]+"("+parseInt(l+1)+")"
+      button.id=labels[l]
+      button.onclick=saveRect
+      p.appendChild(button)
+    }
+    var button=document.createElement('button')
+    button.textContent='Save (S)'
+    button.onclick=save
+    p.appendChild(button)
+    var button=document.createElement('button')
+    button.textContent='Undo (U)'
+    button.onclick=undo
+    p.appendChild(button)
+    var downloadlink=document.createElement('a')
+    downloadlink.text='Click to download zip file of annotations for repository '+rowner+'/'+rname
+    downloadlink.href='/download/'+rowner+'/'+rname
+  }
+  function registerRepo(o,n){
+    rowner=o
+    rname=n
+    startInterval()
+    loadAnnotation()
+  }
+  saveRect=function(obj){
+    if(rect==undefined){
+      return
+    }
+    rects.push(rect)
+    rect=undefined
+    names.push(this.id)
+    redraw()
+  }
+  saveRectWithKey=function(key){
+    if(rect==undefined){
+      return
+    }
+    if(key>labels.length||key==0){
+      return
+    }
+    rects.push(rect)
+    rect=undefined
+    names.push(labels[key-1])
+    redraw()
+  }
+  class Rect{
+    constructor(x,y,width,height){
+      this.x=x
+      this.y=y
+      this.width=width
+      this.height=height
+    }
+    get area(){
+      return this.width*this.height
+    }
+  }
+  
+  class BoundingBox{
+        constructor(name,xmin,ymin,xmax,ymax){
+          this.name=name
+          this.xmin=xmin
+          this.ymin=ymin
+          this.ymax=ymax
+          this.xmax=xmax
+        }
+    }
+  function contains(mousepos,rect){
+    return (mousepos.x>rect.x && mousepos.x<(rect.x+rect.width) && mousepos.y>rect.y && mousepos.y<(rect.y+rect.height))
+  }
+  function redraw(){
+    canvas.width=img.width
+    canvas.height=img.height
+    context.clearRect(0,0,canvas.width,canvas.height)
+    context.drawImage(img,0,0)
+    context.lineWidth=4
+    context.strokeStyle='rgba(255,0,0,255)'
+    //draw x
+    context.beginPath();
+    context.moveTo(Math.min(img.width,mousex),0);
+    context.lineTo(Math.min(img.width,mousex),img.height);
+    context.stroke();
+    //draw y
+    context.beginPath();
+    context.moveTo(0,Math.min(img.height,mousey));
+    context.lineTo(img.width,Math.min(img.height,mousey));
+    context.stroke();
+    if(rect!=undefined){
+          context.lineWidth=4
+          context.strokeStyle='rgba(255,255,0,255)'
+          context.strokeRect(rect.x,rect.y,rect.width,rect.height)
+      }
+    for(i=0;i<rects.length;i++){
+      r=rects[i]
+      context.lineWidth=1
+      context.strokeStyle='rgba(0,255,0,255)'
+      context.strokeRect(r.x,r.y,r.width,r.height)
+      n=names[i]
+      if(n!=undefined){
+        context.fillStyle='rgba(0,255,0,255)'
+        context.font='bold 10px Arial'
+        context.fillText(n,r.x+2,r.y-5)
+      }
+    }
+  }
+  var press,rect,mousedown
+  var mousex=0;
+  var mousey=0;
+  var name=""
+  var iname=""
+  var rects=[]
+  var names=[]
+  var canvas = document.getElementById('myCanvas');
+  var nextButton=document.getElementById('nextButton');
+  var previousButton=document.getElementById('previousButton');
+  var context = canvas.getContext('2d');
+  var img=new Image()
+  var interval
+  var typing=false;
+  var k=1
+  function getMousePos(canvas, evt) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top
+    };
+  }
+  function getRect(point1,point2){
+    var xmin=Math.min(point1.x,point2.x)
+    var xmax=Math.max(point1.x,point2.x)
+    var ymin=Math.min(point1.y,point2.y)
+    var ymax=Math.max(point1.y,point2.y)
+    ymax=Math.min(ymax,img.height)
+    xmax=Math.min(xmax,img.width)
+    xmin=Math.max(0,xmin)
+    ymin=Math.max(0,ymin)
+    return new Rect(xmin,ymin,xmax-xmin,ymax-ymin)
+  }
+  
+  function activateRect(mousepos){
+    var deletecand;
+    for(g=0;g<rects.length;g++){
+      if(contains(mousepos,rects[g])){
+        if(deletecand==undefined){
+          deletecand=g
+        }else if(rects[g].area<rects[deletecand].area){
+          deletecand=g
+        }
+      }
+    }
+    if(deletecand!=undefined){
+      rect=rects[deletecand]
+      name=names[deletecand]
+      rects.splice(deletecand,1)
+      names.splice(deletecand,1)
+    }
+    redraw()
+  }
+  
+  function loadAnnotation(){
+    $.ajax({
+      type: "POST",
+      url: "/getannotation",
+      success:function(result){
+          rects=[]
+          typing=false;
+          name=""
+          rect=undefined
+          names=[]
+          iname=result['image']
+          img.src='http://raw.githubusercontent.com/'+rowner+'/'+rname+'/master/'+iname
+          bboxes=JSON.parse(result['bboxes'])
+          for(j=0;j<bboxes.length;j++){
+            xmin=bboxes[j]['xmin']
+            xmax=bboxes[j]['xmax']
+            ymax=bboxes[j]['ymax']
+            ymin=bboxes[j]['ymin']
+            rects=rects.concat(new Rect(xmin,ymin,xmax-xmin,ymax-ymin))
+            names=names.concat(bboxes[j]['name'])
+          }
+        },
+      data: { index:k,repoowner:rowner,reponame:rname},
+      dataType:"json"
+    }); 
+  }
+  function startInterval(){
+    interval=setInterval(function(){
+    canvas.width=img.width+img.width/4
+    canvas.height=img.height+img.width/4
+    redraw()
+    },500)
+  }
+  function stopInterval(){
+    clearInterval(interval)
+  }
+  document.addEventListener('keydown',function(evt){
+        if(evt.code.substring(0,5)=="Digit"){
+          key=parseInt(evt.code.substring(5,6))
+          saveRectWithKey(key)
+        }
+        if(evt.code=="KeyU"){
+          undo()
+        }
+        if(evt.code=="KeyS"){
+          save()
+        }
+        if(evt.code=="ArrowRight"){
+          k++;loadAnnotation()
+        }
+        if(evt.code=="ArrowLeft"){
+          k--;loadAnnotation();
+        }
+      },false)
+      
+  canvas.onmousemove=function(evt) {
+    mousePos = getMousePos(canvas, evt);
+    mousex=mousePos.x
+    mousey=mousePos.y
+    if(mousedown){
+      rect=getRect(press,mousePos)
+      redraw()
+      return
+    }
+    redraw()
+  }
+  save=function(){
+    if(rects.length==0){
+      return
+    }
+    bboxes=[]
+    for(i=0;i<names.length;i++){
+      r=rects[i]
+      n=names[i]
+      bboxes.push(new BoundingBox(n,r.x,r.y,r.x+r.width,r.y+r.height))
+    }
+    $.ajax({
+      type: "POST",
+      url: "/saveresults",
+      data: {repoowner:rowner,reponame:rname, boxes: bboxes,length:bboxes.length,imgname:iname,width:img.width,height:img.height,success: function(result){
+          k++;loadAnnotation();
+        } 
+      }
+     }); 
+  }
+  undo=function(){
+   if(names.length==rects.length){
+      names.pop()
+      rects.pop() 
+    }else{
+      rects.pop()
+    }
+    rect=undefined
+    redraw()
+  }
+  canvas.onmousedown=function(evt){
+    name=""
+    press=getMousePos(canvas,evt)
+    mousedown=true
+  }
+  canvas.onmouseup=function(evt){
+    mousepos=getMousePos(canvas,evt)
+    if(Math.hypot(mousepos.x-press.x,mousepos.y-press.y)<2){
+      activateRect(mousepos);
+    }
+    mousedown=false
+  }
+  previousButton.onclick=function(){k--;loadAnnotation()}
+  nextButton.onclick=function(){k++;loadAnnotation()}
+</script>
+</canvas>
+</body>
+</html>

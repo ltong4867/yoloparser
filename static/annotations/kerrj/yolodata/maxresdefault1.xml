@@ -1,0 +1,1 @@
+<annotation><filename>maxresdefault1.jpg</filename><size><width>720</width><height>720</height><depth>3</depth></size><object><name>robot</name><bndbox><xmin>163</xmin><ymin>0</ymin><xmax>684</xmax><ymax>510</ymax></bndbox></object><object><name>redball</name><bndbox><xmin>272</xmin><ymin>239</ymin><xmax>363</xmax><ymax>327</ymax></bndbox></object></annotation>
